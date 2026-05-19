@@ -7,6 +7,7 @@ import os
 
 app = FastAPI(title="YT Downloader API")
 
+# Enable CORS for your Netlify frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -20,7 +21,17 @@ class VideoRequest(BaseModel):
 
 @app.post("/api/info")
 async def get_video_info(request: VideoRequest):
-    ydl_opts = {"quiet": True, "no_warnings": True}
+    # Fetch the raw cookie header string from Render's environment panel
+    raw_cookie_string = os.getenv("YT_COOKIES", "")
+
+    ydl_opts = {
+        "quiet": True, 
+        "no_warnings": True,
+        # Passes your browser session via HTTP headers to instantly bypass bot blocks
+        "http_headers": {
+            "Cookie": raw_cookie_string
+        }
+    }
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -28,7 +39,6 @@ async def get_video_info(request: VideoRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    # Dynamically maps the download proxy to the server's public live URL on Render
     host_url = os.getenv("LIVE_BACKEND_URL", "http://127.0.0.1:8000")
     local_download_url = f"{host_url}/api/download?url={request.url}"
 
@@ -41,6 +51,7 @@ async def get_video_info(request: VideoRequest):
     }
 
 def remove_file(path: str):
+    """Cleans up the downloaded file from Render's disk after sending it to the user."""
     try:
         if os.path.exists(path):
             os.remove(path)
@@ -52,6 +63,8 @@ async def download_video(url: str, quality: str, background_tasks: BackgroundTas
     os.makedirs("downloads", exist_ok=True)
     height = quality if quality in ["1080", "720", "480", "360"] else "720"
     
+    raw_cookie_string = os.getenv("YT_COOKIES", "")
+
     ydl_opts = {
         "format": f"bestvideo[height<={height}][ext=mp4]+bestaudio[ext=m4a]/best[height<={height}][ext=mp4]/best[height<={height}]",
         "outtmpl": "downloads/%(title)s.%(ext)s",
@@ -59,6 +72,9 @@ async def download_video(url: str, quality: str, background_tasks: BackgroundTas
         "restrictfilenames": True,
         "quiet": True,
         "no_warnings": True,
+        "http_headers": {
+            "Cookie": raw_cookie_string
+        }
     }
 
     try:
@@ -79,6 +95,6 @@ async def download_video(url: str, quality: str, background_tasks: BackgroundTas
                     media_type="application/octet-stream"
                 )
             else:
-                raise HTTPException(status_code=500, detail="Failed to locate file path.")
+                raise HTTPException(status_code=500, detail="Processing failed.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
