@@ -7,7 +7,6 @@ import os
 
 app = FastAPI(title="YT Downloader API")
 
-# Enable CORS for your Netlify frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -19,18 +18,24 @@ app.add_middleware(
 class VideoRequest(BaseModel):
     url: str
 
+def create_cookie_file():
+    """Generates a native Netscape cookie file on the server's local storage dynamically."""
+    raw_cookies = os.getenv("YT_COOKIES")
+    if raw_cookies:
+        cookie_path = "cookies.txt"
+        with open(cookie_path, "w", encoding="utf-8") as f:
+            f.write(raw_cookies)
+        return cookie_path
+    return None
+
 @app.post("/api/info")
 async def get_video_info(request: VideoRequest):
-    # Fetch the raw cookie header string from Render's environment panel
-    raw_cookie_string = os.getenv("YT_COOKIES", "")
-
+    cookie_file = create_cookie_file()
+    
     ydl_opts = {
         "quiet": True, 
         "no_warnings": True,
-        # Passes your browser session via HTTP headers to instantly bypass bot blocks
-        "http_headers": {
-            "Cookie": raw_cookie_string
-        }
+        "cookiefile": cookie_file  # Natively processes authentication tokens across YouTube subdomains
     }
 
     try:
@@ -39,7 +44,7 @@ async def get_video_info(request: VideoRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    host_url = os.getenv("LIVE_BACKEND_URL", "http://127.0.0.1:8000")
+    host_url = os.getenv("LIVE_BACKEND_URL", "https://yt-downloader-backend-gr6h.onrender.com")
     local_download_url = f"{host_url}/api/download?url={request.url}"
 
     return {
@@ -51,7 +56,6 @@ async def get_video_info(request: VideoRequest):
     }
 
 def remove_file(path: str):
-    """Cleans up the downloaded file from Render's disk after sending it to the user."""
     try:
         if os.path.exists(path):
             os.remove(path)
@@ -63,7 +67,7 @@ async def download_video(url: str, quality: str, background_tasks: BackgroundTas
     os.makedirs("downloads", exist_ok=True)
     height = quality if quality in ["1080", "720", "480", "360"] else "720"
     
-    raw_cookie_string = os.getenv("YT_COOKIES", "")
+    cookie_file = create_cookie_file()
 
     ydl_opts = {
         "format": f"bestvideo[height<={height}][ext=mp4]+bestaudio[ext=m4a]/best[height<={height}][ext=mp4]/best[height<={height}]",
@@ -72,9 +76,7 @@ async def download_video(url: str, quality: str, background_tasks: BackgroundTas
         "restrictfilenames": True,
         "quiet": True,
         "no_warnings": True,
-        "http_headers": {
-            "Cookie": raw_cookie_string
-        }
+        "cookiefile": cookie_file
     }
 
     try:
