@@ -35,7 +35,7 @@ async def get_video_info(request: VideoRequest):
     ydl_opts = {
         "quiet": True, 
         "no_warnings": True,
-        "cookiefile": cookie_file  # Natively processes authentication tokens across YouTube subdomains
+        "cookiefile": cookie_file
     }
 
     try:
@@ -70,7 +70,7 @@ async def download_video(url: str, quality: str, background_tasks: BackgroundTas
     cookie_file = create_cookie_file()
 
     ydl_opts = {
-        "format": f"bestvideo[height<={height}][ext=mp4]+bestaudio[ext=m4a]/best[height<={height}][ext=mp4]/best[height<={height}]",
+        "format": f"bestvideo[height<={height}]+bestaudio/best[height<={height}]",
         "outtmpl": "downloads/%(title)s.%(ext)s",
         "merge_output_format": "mp4",
         "restrictfilenames": True,
@@ -83,7 +83,6 @@ async def download_video(url: str, quality: str, background_tasks: BackgroundTas
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
-            
             if not os.path.exists(filename):
                 base, _ = os.path.splitext(filename)
                 if os.path.exists(base + ".mp4"):
