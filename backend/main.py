@@ -35,7 +35,8 @@ async def get_video_info(request: VideoRequest):
     ydl_opts = {
         "quiet": True, 
         "no_warnings": True,
-        "cookiefile": cookie_file
+        "cookiefile": cookie_file,
+        "format": "best"  # Forces a basic single-stream evaluation to prevent metadata extraction crashes
     }
 
     try:
@@ -69,8 +70,10 @@ async def download_video(url: str, quality: str, background_tasks: BackgroundTas
     
     cookie_file = create_cookie_file()
 
+    # Prioritizes pre-merged files up to the selected resolution (perfect for cloud setups),
+    # then cleanly falls back to adaptive streams if needed.
     ydl_opts = {
-        "format": f"bestvideo[height<={height}]+bestaudio/best[height<={height}]",
+        "format": f"best[height<={height}][ext=mp4]/best[height<={height}]/best",
         "outtmpl": "downloads/%(title)s.%(ext)s",
         "merge_output_format": "mp4",
         "restrictfilenames": True,
@@ -83,6 +86,7 @@ async def download_video(url: str, quality: str, background_tasks: BackgroundTas
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
+            
             if not os.path.exists(filename):
                 base, _ = os.path.splitext(filename)
                 if os.path.exists(base + ".mp4"):
