@@ -5,6 +5,12 @@ from pydantic import BaseModel
 import yt_dlp
 import os
 
+# --- 🚀 NEW RUNTIME INJECTION: Hooks Deno into your cloud system paths ---
+deno_path = os.path.expanduser("~/.deno/bin")
+if deno_path not in os.environ["PATH"]:
+    os.environ["PATH"] = f"{deno_path}:{os.environ['PATH']}"
+# ------------------------------------------------------------------------
+
 app = FastAPI(title="YT Downloader API")
 
 app.add_middleware(
@@ -35,8 +41,7 @@ async def get_video_info(request: VideoRequest):
     ydl_opts = {
         "quiet": True, 
         "no_warnings": True,
-        "cookiefile": cookie_file,
-        "format": "best"  # Forces a basic single-stream evaluation to prevent metadata extraction crashes
+        "cookiefile": cookie_file
     }
 
     try:
@@ -70,10 +75,8 @@ async def download_video(url: str, quality: str, background_tasks: BackgroundTas
     
     cookie_file = create_cookie_file()
 
-    # Prioritizes pre-merged files up to the selected resolution (perfect for cloud setups),
-    # then cleanly falls back to adaptive streams if needed.
     ydl_opts = {
-        "format": f"best[height<={height}][ext=mp4]/best[height<={height}]/best",
+        "format": f"bestvideo[height<={height}]+bestaudio/best[height<={height}]",
         "outtmpl": "downloads/%(title)s.%(ext)s",
         "merge_output_format": "mp4",
         "restrictfilenames": True,
